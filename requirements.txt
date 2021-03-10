@@ -77,7 +77,6 @@ matplotlib==3.3.3
 mistune==0.8.4
 more-itertools==4.2.0
 mpmath==1.2.1
-myutils==1.0
 nbclassic==0.2.6
 nbclient==0.5.1
 nbconvert==6.0.7
