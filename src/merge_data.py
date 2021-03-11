@@ -1,9 +1,12 @@
 import glob
 from collections import Counter
 import pandas as pd
+import numpy as np
 import csv
 import chess
-import tqdm
+import chess.engine
+import time
+from tqdm import tqdm
 
 """
 Score positions with a chess engine
@@ -43,7 +46,7 @@ def score_positions(filenames, output_filename, engine=None, min_count=2, engine
         with tqdm(total = len(totals)) as progress_bar:
             for i, (fen, t) in enumerate(totals.items()):
                 progress_bar.update(1)
-
+                
                 if t < min_count:
                     continue
 
@@ -53,16 +56,16 @@ def score_positions(filenames, output_filename, engine=None, min_count=2, engine
                     score = info["score"].white().score(mate_score=1000)
                     score = 1.0 / (1.0 + np.exp(-score / 100))
 
-                time.sleep(0.01)
+                time.sleep(0.001)
                 w = wins[fen]
                 writer.writerow([fen, w, t, score])
-
+        print('Finished.')
                 
 if __name__ == '__main__':
-    engine = chess.engine.SimpleEngine.popen_uci("/usr/games/stockfish")
-    filenames = glob.glob("output/*standard*.csv")
-    output_filename = 'output/all_scored_2.csv'
-
-    score_positions(filenames, output_filename, engine=engine)
+    with chess.engine.SimpleEngine.popen_uci("/usr/games/stockfish") as engine:
+        filenames = glob.glob("output/*standard*.csv")
+        output_filename = 'output/all_scored.csv'
+        
+        score_positions(filenames, output_filename, engine=engine, min_count=3, engine_depth=4)
 
                 

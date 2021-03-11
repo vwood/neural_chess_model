@@ -5,7 +5,7 @@ import io
 import os
 from collections import Counter
 import csv
-import tqdm
+from tqdm import tqdm
 
 """
 Convert pgn data to a csv format
@@ -43,38 +43,39 @@ def convert_file(filename, limit=8000, min_count=2):
 
     with bz2.open(filename, "rb") as zip:
         pgn = io.StringIO(zip.read().decode('ascii'))
+        with tqdm(total = limit) as progress_bar:
+            while game := chess.pgn.read_game(pgn):
+                if analysed_games > limit:
+                    break
 
-        while game := chess.pgn.read_game(pgn):
-            if analysed_games > limit:
-                break
+                if (game.headers.get('BlackIsComp', 'No') == 'Yes'
+                    or game.headers.get('WhiteIsComp', 'No') == 'Yes'):
+                    continue
 
-            if (game.headers.get('BlackIsComp', 'No') == 'Yes'
-                or game.headers.get('WhiteIsComp', 'No') == 'Yes'):
-                continue
+                end = game.end().comment
+                if end in bad_ends:
+                    continue
 
-            end = game.end().comment
-            if end in bad_ends:
-                continue
+                results[end] += 1
 
-            results[end] += 1
+                progress_bar.update(1)
+                analysed_games += 1
 
-            analysed_games += 1
+                score = result_table[game.headers['Result']] 
 
-            score = result_table[game.headers['Result']] 
+                board = game.board()
+                for move in game.mainline_moves():
+                    board.push(move)
 
-            board = game.board()
-            for move in game.mainline_moves():
-                board.push(move)
-
-                fen = stored_fen(board.fen())
-                boards_w[fen] += score[0]
-                boards_total[fen] += 1
-                
+                    fen = stored_fen(board.fen())
+                    boards_w[fen] += score[0]
+                    boards_total[fen] += 1
+                    
     positions = 0            
     for k, v in boards_total.items():
         if v >= min_count:
             positions += 1
-    print(f"found {positions} positions occurring at least {min_count} times")
+    print(f"Found {positions} positions occurring at least {min_count} times")
 
     filename = os.path.splitext(os.path.basename(filename))[0]
     with open(f'output/{filename}.csv', 'w') as f:
@@ -85,10 +86,11 @@ def convert_file(filename, limit=8000, min_count=2):
         for board, total in boards_total.items():
             wins = boards_w[board]
             writer.writerow([board, wins, total])
+            
+    print(f"Total boards found: {len(boards_total)}")
 
 
 if __name__ == '__main__':
     for filename in glob.glob("data/*.bz2"):
-        convert_file(filename)
+        convert_file(filename, limit=10000)
 
-    print(f"Total boards found: {len(boards_total)}")
