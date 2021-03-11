@@ -5,6 +5,7 @@ import io
 import os
 from collections import Counter
 import csv
+import tqdm
 
 """
 Convert pgn data to a csv format
@@ -90,4 +91,4 @@ if __name__ == '__main__':
     for filename in glob.glob("data/*.bz2"):
         convert_file(filename)
 
-    print(len(boards_total))
+    print(f"Total boards found: {len(boards_total)}")
