@@ -109,7 +109,7 @@ def create_model():
     model.compile(optimizer="Adam", loss="mse")
     return model
 
-def load_data(filename, representation_fn)
+def load_data(filename, representation_fn):
     df = pd.read_csv(filename)
 
     sample = []
@@ -126,7 +126,7 @@ def load_data(filename, representation_fn)
         a, b = wins + score, total - wins + (10 - score)
 
         # ys.append([sc.btdtri(a+1, b+1, 0.2), sc.btdtri(a+1, b+1, 0.8)])
-        if flip:
+        if is_flipped:
             ys.append([1.0-score])
         else:
             ys.append([score])
@@ -139,7 +139,7 @@ def load_data(filename, representation_fn)
 
 if __name__ == '__main__':
     model = create_model()
-    sample, ys = load_data('output/all_scored.csv', simple_representation)
+    sample, ys = load_data('../output/all_scored.csv', simple_representation)
 
     print(sample.shape, ys.shape)
 
@@ -155,8 +155,6 @@ if __name__ == '__main__':
 
     print(x_valid.shape, y_valid.shape, x_train.shape, y_train.shape)
     print(np.mean(ys,axis=0), np.std(ys, axis=0))
-    print(df.total.mean())
-    print(df.shape)
     print(sample.shape)
 
     save_callback = tf.keras.callbacks.ModelCheckpoint(filepath="models/chess-score-{epoch:04d}-{val_loss:.3f}.h5",
