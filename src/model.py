@@ -19,6 +19,10 @@ TODO:
 
 piece_to_index = dict([(piece, i) for i, piece in enumerate('pnbrqkPNBRQK')])
 
+def board_bitmask_to_numpy(mask):
+    mask = np.array([mask], dtype=np.uint64).view(np.uint8)
+    return np.unpackbits(mask).reshape((8, 8))
+
 class BasicRepresentation:
     """
     * requires (12, 8, 8) input size
@@ -41,11 +45,9 @@ class BasicRepresentation:
 
         for piece in range(1, 7): # chess numbers pieces from 1 to 6
             mask = board.pieces_mask(piece, chess.WHITE)
-            a = np.unpackbits(np.array([mask], dtype=np.uint64).view(np.uint8)).reshape((8, 8))
-            result[piece-1, :, :] = a[::-1, ::-1]
+            result[piece-1, :, :] = board_bitmask_to_numpy(mask)[::-1, ::-1]
             mask = board.pieces_mask(piece, chess.BLACK)
-            a = np.unpackbits(np.array([mask], dtype=np.uint64).view(np.uint8)).reshape((8, 8))
-            result[piece+5, :, :] = a[::-1, ::-1]
+            result[piece+5, :, :] = board_bitmask_to_numpy(mask)[::-1, ::-1]
         
         return result, is_flipped
 
@@ -72,9 +74,9 @@ class BasicRepresentationWithAttacked:
 
         for piece in range(1, 7): # chess numbers pieces from 1 to 6
             mask = board.pieces_mask(piece, chess.WHITE)
-            result[piece-1, :, :] = np.unpackbits(np.array([mask], dtype=np.uint64).view(np.uint8)).reshape((8, 8))
+            result[piece-1, :, :] = board_bitmask_to_numpy(mask)[::-1, ::-1]
             mask = board.pieces_mask(piece, chess.BLACK)
-            result[piece+5, :, :] = np.unpackbits(np.array([mask], dtype=np.uint64).view(np.uint8)).reshape((8, 8))
+            result[piece+5, :, :] = board_bitmask_to_numpy(mask)[::-1, ::-1]
 
         for i in range(8):
             for j in range(8):
@@ -106,11 +108,9 @@ class CompactRepresentation:
 
         for piece in range(1, 7): # chess numbers pieces from 1 to 6
             mask = board.pieces_mask(piece, chess.WHITE)
-            a = np.unpackbits(np.array([mask], dtype=np.uint64).view(np.uint8)).reshape((8, 8))
-            result[piece-1, :, :] = a[::-1, ::-1]
+            result[piece-1, :, :] = board_bitmask_to_numpy(mask)[::-1, ::-1]
             mask = board.pieces_mask(piece, chess.BLACK)
-            a = np.unpackbits(np.array([mask], dtype=np.uint64).view(np.uint8)).reshape((8, 8))
-            result[piece-1, :, :] -= a[::-1, ::-1]
+            result[piece+5, :, :] = board_bitmask_to_numpy(mask)[::-1, ::-1]
         
         return result, is_flipped
 
