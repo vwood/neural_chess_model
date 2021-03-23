@@ -92,5 +92,5 @@ def convert_file(filename, limit=8000, min_count=2):
 
 if __name__ == '__main__':
     for filename in glob.glob("data/*.bz2"):
-        convert_file(filename, limit=10000)
+        convert_file(filename, limit=20000)
 

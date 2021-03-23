@@ -5,6 +5,7 @@ import numpy as np
 import scipy.special as sc
 import keras
 import tensorflow as tf
+import chess
 
 """
 Contains multiple representations for neural networks
@@ -16,14 +17,14 @@ TODO:
  * king pos * other piece pos
 """
 
-
-piece_to_index = dict([(piece, i) for i, piece in enumerate('rnbqkpPRNBQK')])
+piece_to_index = dict([(piece, i) for i, piece in enumerate('pnbrqkPNBRQK')])
 
 class BasicRepresentation:
     """
     * requires (12, 8, 8) input size
 
     12 panes, one per type of piece
+    2 more panes showing squares attacked by that side
     """
     def get_input_size(self):
         return (12, 8, 8)
@@ -31,29 +32,58 @@ class BasicRepresentation:
     def from_fen(self, fen):
         result = np.zeros((12, 8, 8), dtype=np.int8)
 
-        is_flipped = False
-        if fen.split(' ')[1] == 'b':
-            fen = fen.swapcase()
-            is_flipped = True
-    
-        row, col = 0, 0
-        for ch in fen:
-            if ch == ' ':
-                break
-        
-            if ch == '/':
-                row += 1
-                col = 0
-            elif ch.isdigit():
-                col += int(ch)
-            else:
-                if is_flipped:
-                    result[piece_to_index[ch], 7 - col, row] = 1
-                else:
-                    result[piece_to_index[ch], col, row] = 1
-                col += 1
+        board = chess.Board(fen)
 
+        is_flipped = False
+        if board.turn == chess.BLACK:
+            is_flipped = True
+            board = board.mirror()
+
+        for piece in range(1, 7): # chess numbers pieces from 1 to 6
+            mask = board.pieces_mask(piece, chess.WHITE)
+            a = np.unpackbits(np.array([mask], dtype=np.uint64).view(np.uint8)).reshape((8, 8))
+            result[piece-1, :, :] = a[::-1, ::-1]
+            mask = board.pieces_mask(piece, chess.BLACK)
+            a = np.unpackbits(np.array([mask], dtype=np.uint64).view(np.uint8)).reshape((8, 8))
+            result[piece+5, :, :] = a[::-1, ::-1]
+        
         return result, is_flipped
+
+    
+class BasicRepresentationWithAttacked:
+    """
+    * requires (14, 8, 8) input size
+
+    12 panes, one per type of piece
+    2 more panes showing squares attacked by that side
+    """
+    def get_input_size(self):
+        return (14, 8, 8)
+    
+    def from_fen(self, fen):
+        result = np.zeros((14, 8, 8), dtype=np.int8)
+
+        board = chess.Board(fen)
+
+        is_flipped = False
+        if board.turn == chess.BLACK:
+            is_flipped = True
+            board = board.mirror()
+
+        for piece in range(1, 7): # chess numbers pieces from 1 to 6
+            mask = board.pieces_mask(piece, chess.WHITE)
+            result[piece-1, :, :] = np.unpackbits(np.array([mask], dtype=np.uint64).view(np.uint8)).reshape((8, 8))
+            mask = board.pieces_mask(piece, chess.BLACK)
+            result[piece+5, :, :] = np.unpackbits(np.array([mask], dtype=np.uint64).view(np.uint8)).reshape((8, 8))
+
+        for i in range(8):
+            for j in range(8):
+                square = (7 - i) + j * 8
+                result[12, j, i] = board.attackers_mask(chess.WHITE, square) > 0
+                result[13, j, i] = board.attackers_mask(chess.BLACK, square) > 0
+        
+        return result, is_flipped
+
     
 class CompactRepresentation:
     """
@@ -67,37 +97,24 @@ class CompactRepresentation:
     def from_fen(self, fen):
         result = np.zeros((6, 8, 8), dtype=np.int8)
 
-        # Check if we need to flip the board
+        board = chess.Board(fen)
+
         is_flipped = False
-        if fen.split(' ')[1] == 'b':
-            fen = fen.swapcase()
+        if board.turn == chess.BLACK:
             is_flipped = True
+            board = board.mirror()
 
-        row, col = 0, 0
-        for ch in fen:
-            if ch == ' ':
-                break
-
-            if ch == '/':
-                row += 1
-                col = 0
-            elif ch.isdigit():
-                col += int(ch)
-            else:
-                if is_flipped:
-                    if ch.isupper():
-                        result[piece_to_index[ch % 6], 7-col, row] = 1
-                    else:
-                        result[piece_to_index[ch % 6], 7-col, row] = -1
-                else:
-                    if ch.isupper():
-                        result[piece_to_index[ch % 6], col, row] = -1
-                    else:
-                        result[piece_to_index[ch % 6], col, row] = 1
-                col += 1
-
+        for piece in range(1, 7): # chess numbers pieces from 1 to 6
+            mask = board.pieces_mask(piece, chess.WHITE)
+            a = np.unpackbits(np.array([mask], dtype=np.uint64).view(np.uint8)).reshape((8, 8))
+            result[piece-1, :, :] = a[::-1, ::-1]
+            mask = board.pieces_mask(piece, chess.BLACK)
+            a = np.unpackbits(np.array([mask], dtype=np.uint64).view(np.uint8)).reshape((8, 8))
+            result[piece-1, :, :] -= a[::-1, ::-1]
+        
         return result, is_flipped
 
+    
 class HalfKP:
     """
     * requires (10, 8, 8, 8, 8) input size
@@ -112,8 +129,7 @@ class HalfKP:
     def from_fen(fen):
         pass
 
-def create_model(representation):
-    # TODO: get input size / layer from representation...
+def create_simple_dense_model(representation):
     input_ = tf.keras.Input(shape=representation.get_input_size(), dtype='int8')
     flat = tf.keras.layers.Flatten()(input_)
     hidden1 = tf.keras.layers.Dense(1024, activation='elu',
@@ -130,6 +146,36 @@ def create_model(representation):
     outputs = tf.keras.layers.Dense(2, activation='sigmoid')(hidden3)
     model = tf.keras.Model(inputs=input_, outputs=outputs)
     model.compile(optimizer="Adam", loss="mse")
+    model.summary()
+    return model
+
+
+def create_conv_model(representation):
+    input_ = tf.keras.Input(shape=representation.get_input_size(), dtype='float32')
+
+    # permutation solves the problem of having the tensor we want to permute last
+    # TODO: solve this problem in the representations.
+    perm = tf.keras.layers.Permute((2, 3, 1))(input_)
+    conv1 =  tf.keras.layers.Conv1D(filters = 16, kernel_size=(14), padding='same', activation='relu',
+                             input_shape=(1, 8,8))(perm)
+    # pooling =  tf.keras.layers.MaxPooling1D()(conv1)
+    
+    flat = tf.keras.layers.Flatten()(conv1)
+    hidden1 = tf.keras.layers.Dense(1024, activation='elu',
+                                    #kernel_regularizer=tf.keras.regularizers.L2(1e-9)
+                                    )(flat)
+    dropout1 = tf.keras.layers.Dropout(0.1)(hidden1)
+    hidden2 = tf.keras.layers.Dense(512, activation='elu',
+                                    #kernel_regularizer=tf.keras.regularizers.L2(1e-9)
+                                    )(dropout1)
+    hidden3 = tf.keras.layers.Dense(128, activation='elu',
+                                    #kernel_regularizer=tf.keras.regularizers.L2(1e-9)
+                                    )(hidden2)
+
+    outputs = tf.keras.layers.Dense(2, activation='sigmoid')(hidden3)
+    model = tf.keras.Model(inputs=input_, outputs=outputs)
+    model.compile(optimizer="Adam", loss="mse")
+    model.summary()
     return model
 
 def load_data(filename, representation):
@@ -161,13 +207,14 @@ def load_data(filename, representation):
 
 
 if __name__ == '__main__':
-    representation = BasicRepresentation()
-    model = create_model(representation)
+    representation = BasicRepresentationWithAttacked()
+    # model = create_simple_dense_model(representation)
+    model = create_conv_model(representation)
     sample, ys = load_data('./output/all_scored.csv', representation)
 
     print(sample.shape, ys.shape)
 
-    valid_size = 10000
+    valid_size = 2000
     valid_idx = np.random.choice(ys.shape[0], valid_size)
     x_valid = sample[valid_idx]
     y_valid = ys[valid_idx]
